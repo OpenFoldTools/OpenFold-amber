@@ -36,6 +36,12 @@ from Bio import BiopythonWarning
 # FUNCTIONS
 ###############
 
+def get_verbose_print(verbose):
+    def verbose_print(str, vp):
+        if verbose >= vp:
+            print(str)
+    return verbose_print
+
 def parse_args():
     '''
     PARSE COMMAND LINE ARGUMENTS
@@ -47,18 +53,22 @@ def parse_args():
     parser.add_argument("-v", "--verbosity", action="count", default=0, help="increase output verbosity")
     parser.add_argument("parameter_file", help="JSON parameter file")
     args = parser.parse_args()
+
+    global vprint
+    vprint = get_verbose_print(args.verbosity)
+
     return args
 
 def load_configs(args):
     '''
     FILL PARAMETER VARIABLES
-    
+
     Takes in the args namespace, reads the user-provided config json file, and creates a new namespace with the config parameters.
 
     Input:
         args, an argparse namespace that currently holds the required parameter_file namespace.
-    Returns: 
-        cfg, an argparse namespace that contains the necessary parameters to run the OpenFold pipeline. 
+    Returns:
+        cfg, an argparse namespace that contains the necessary parameters to run the OpenFold pipeline.
     '''
 
     # parameter names
@@ -160,8 +170,8 @@ def parse_6_col_dist_file(dist_file,atom_dictionary,parameters):
     Input:
         dist_file       : string, local or global path to the user-specified distance restraints; expected format of six columns
         atom_dictionary : dictionary that contains the {(resid,atom_id) : atom_serial_number} for each atom in the protein.
-        parameters      : argparse namespace that contains the openfold parameters 
-    
+        parameters      : argparse namespace that contains the openfold parameters
+
     '''
     first = 1
     with open(dist_file,'r') as input_file, open('RST.dist','w') as output_file:
@@ -191,12 +201,12 @@ def parse_6_col_dist_file(dist_file,atom_dictionary,parameters):
 def parse_8_col_dist_file(dist_file,atom_dictionary,parameters):
     '''
     parse 8 column distance restraints file
-    
+
     Input:
         dist_file       : string, local or global path to the user-specified distance restraints; expected format of six columns
         atom_dictionary : dictionary that contains the {(resid,atom_id) : atom_serial_number} for each atom in the protein.
-        parameters      : argparse namespace that contains the openfold parameters 
-    
+        parameters      : argparse namespace that contains the openfold parameters
+
     '''
     first = 1
     with open(dist_file,'r') as input_file, open('RST.dist','w') as output_file:
@@ -232,35 +242,35 @@ def preprocess(cfg):
     # MAKE THE OUTPUT DIRECTORY
     ###############
     os.mkdir(cfg.name) # makes the output directory w/in the working directory
-    #print('Created ' + os.getcwd()) # include in verbose mode
+    vprint('Created ' + os.getcwd(), 1) # include in verbose mode
 
     ###############
     # COPY IMPORTANT FILES INTO THE OUTPUT DIRECTORY
     ###############
     new_file_path = shutil.copy2(cfg.fasta_file_path,'%s/'%(cfg.name))
     fasta_file = cfg.fasta_file_path.split('/')[-1]
-    #print('Copied '+cfg.fasta_file_path+' to '+new_file_path) # include in verbose mode
+    vprint('Copied '+cfg.fasta_file_path+' to '+new_file_path, 1) # include in verbose mode
 
     new_file_path = shutil.copy2(cfg.simulation_input_file_path,'%s/'%(cfg.name))
     simulation_input_file = cfg.simulation_input_file_path.split('/')[-1]
-    #print('Copied '+cfg.simulation_input_file_path+' to '+new_file_path) # include in verbose mode
+    vprint('Copied '+cfg.simulation_input_file_path+' to '+new_file_path, 1) # include in verbose mode
 
     # copy user-specified restraint files to working dir
     if cfg.distance_restraints_file_path != "None":
         new_file_path = shutil.copy2(cfg.distance_restraints_file_path,'%s/'%(cfg.name))
         dist_rst_file = cfg.distance_restraints_file_path.split('/')[-1]
-        #print('Copied '+cfg.distance_restraints_file_path+' to '+new_file_path) # include in verbose mode
+        vprint('Copied '+cfg.distance_restraints_file_path+' to '+new_file_path, 1) # include in verbose mode
     else:
         dist_rst_file = None
 
     if cfg.torsion_restraints_file_path != "None":
         new_file_path = shutil.copy2(cfg.torsion_restraints_file_path,'%s/'%(cfg.name))
         tors_rst_file = cfg.torsion_restraints_file_path.split('/')[-1]
-        #print('Copied '+cfg.torsion_restraints_file_path+' to '+new_file_path) # include in verbose mode
+        vprint('Copied '+cfg.torsion_restraints_file_path+' to '+new_file_path, 1) # include in verbose mode
         if cfg.tordef_file_path != "None":
             new_file_path = shutil.copy2(cfg.tordef_file_path,'%s/'%(cfg.name))
             tordef_file = cfg.tordef_file_path.split('/')[-1]
-            #print('Copied '+cfg.tordef_file_path+' to '+new_file_path) # include in verbose mode
+            vprint('Copied '+cfg.tordef_file_path+' to '+new_file_path, 1) # include in verbose mode
         else:
             print("The 'tordef_file_path' parameter was not defined. Please define this parameter by pointing to the provided tordef.lib file in the OpenFold repository.")
             sys.exit()
@@ -272,7 +282,7 @@ def preprocess(cfg):
     ###############
     # READ FASTA FILE TO CREATE 3 LETTER SEQUENCE
     ###############
-    print('\n\n======================== READING FASTA ========================')
+    vprint('\n\n======================== READING FASTA ========================', 1)
     sequence = ''
     with open(fasta_file,'r') as f:
         for line in f:
@@ -291,12 +301,12 @@ def preprocess(cfg):
         else:
             triseq += res + ' '
 
-    print('PROTEIN SEQUENCE: '+ str(triseq))
+    vprint('PROTEIN SEQUENCE: '+ str(triseq), 1)
 
     ###############
     # PREPARE AMBERTOOLS20 TLEAP SCRIPT
     ###############
-    print('\n\n=============== GENERATING LINEAR PDB WITH TLEAP ==============')
+    vprint('\n\n=============== GENERATING LINEAR PDB WITH TLEAP ==============', 1)
     with open('tleap.in','w') as f:
         # NOTE: assumes the forcefield_file is readable/source-able by AmberTools tleap; best if user just uses leaprc files provided in AmberTools directories.
         f.write('source ' + cfg.forcefield + '\n' + cfg.name + ' = sequence { ' + triseq + '}\nsaveoff ' + cfg.name + ' linear.lib\nsavepdb ' + cfg.name + ' linear.pdb\nsaveamberparm ' + cfg.name + ' linear.prmtop linear.rst7\nquit')
@@ -310,7 +320,7 @@ def preprocess(cfg):
     # PREPARE THE DISTANCE RESTRAINT FILE
     ###############
     if dist_rst_file != None:
-        print('\n\n=== READING DISTANCE RESTRAINTS AND MATCHING WITH LINEAR PDB ==')
+        vprint('\n\n=== READING DISTANCE RESTRAINTS AND MATCHING WITH LINEAR PDB ==', 1)
 
         #extract correct atom indices from amber linear.pdb file
         with warnings.catch_warnings():
@@ -335,13 +345,13 @@ def preprocess(cfg):
             for line in list_of_lines:
                 out_file.write(line)
 
-        print('DISTANCE RESTRAINTS GENERATED')
+        vprint('DISTANCE RESTRAINTS GENERATED', 1)
 
     ###############
     # PREPARE THE TORSION RESTRAINT FILE
     ###############
     if tors_rst_file != None:
-        print('\n\n=================== MAKING ANGLE RESTRAINTS ===================')
+        vprint('\n\n=================== MAKING ANGLE RESTRAINTS ===================', 1)
         with open('RST.angles','w') as stdout_file, open('makeANG_RST.output','w') as stderr_file:
             retcode = subprocess.run('makeANG_RST -pdb linear.pdb -con %s -lib %s'%(tors_rst_file,tordef_file), shell=True, stdout=stdout_file, stderr=stderr_file)
             #print(retcode) # return if verbose mode is set
@@ -355,7 +365,7 @@ def preprocess(cfg):
             for line in list_of_lines:
                 out_file.write(line)
 
-        print('TORSION RESTRAINTS GENERATED')
+        vprint('TORSION RESTRAINTS GENERATED', 1)
 
 def run_MD(cfg, idx, results):
     #TODO: fill in details about this function
@@ -363,7 +373,7 @@ def run_MD(cfg, idx, results):
     RUNNING SIMULATED ANNEALING MOLECULAR DYNAMICS SIMULATIONS
     '''
     iteration = str(idx+1).zfill(len(str(cfg.n_folding_sims)))
-    print('\n====================== RUN SIMULATION %s ======================'%(iteration))
+    vprint('\n====================== RUN SIMULATION %s ======================'%(iteration), 1)
 
 
     run_dir = 'run_%s'%(iteration)
@@ -376,7 +386,7 @@ def run_MD(cfg, idx, results):
     replace_string = '%s'%(cfg.temperature)
     find_replace(search_string,replace_string,cfg.simulation_input_file_path,'%s/simulation.in'%(run_dir))
     retcode = subprocess.run('sander -O -i simulation.in -p ../linear.prmtop -c ../linear.rst7 -r simulation.rst7 -o simulation.out -x simulation.nc', shell=True, cwd=run_dir)
-    #print(retcode) # print if verbose mode is on
+    vprint(retcode, 1) # print if verbose mode is on
     os.rename('%s/RST'%(run_dir),'%s/RST1'%(run_dir))
 
     warnings.filterwarnings('ignore')
@@ -395,9 +405,9 @@ def structure_analysis(mda_universe, run_dir, cfg, idx, results):
     #TODO: fill in details about this analysis function
     '''
     from MDAnalysis.analysis import dihedrals
-    
+
     warnings.filterwarnings('ignore')
-    
+
     iteration = str(idx+1).zfill(len(str(cfg.n_folding_sims)))
 
     # run dihedral test
@@ -453,7 +463,7 @@ def structure_analysis(mda_universe, run_dir, cfg, idx, results):
                     restraint_penalty += float(line.split()[3])
                 except ValueError:  # usual suspect is '**********'
                     restraint_penalty = np.inf
-                    
+
             if 'Total torsion  penalty:' in line:
                 try:
                     restraint_penalty += float(line.split()[3])
@@ -467,12 +477,12 @@ def rank_structures(results,cfg):
     # perform dihedral test trimming
     passed_dihedral_test = np.nonzero(results[:,0] == 1)[0] # pulls first element of the tuple created; this corresponds to the run indices that pass the dihedral test (runs w/ a 1 in the zeroth element of results array)
     if passed_dihedral_test.shape[0] == 0:  # no runs passed the dihedral test; grabbing data associated with all runs
-        print('No runs passed the Ramachandran dihedral test. Note this. Analyzing energy results to find top models, naive of dihedral tests.')
+        vprint('No runs passed the Ramachandran dihedral test. Note this. Analyzing energy results to find top models, naive of dihedral tests.', 1)
         analysis_data = results
         idx = np.arange(analysis_data.shape[0])
     else:   # some runs passed the dihedral test; grabbing only data associated with those runs
-        print('Runs that passed the Ramachandran dihedral test:')
-        print(passed_dihedral_test+1)
+        vprint('Runs that passed the Ramachandran dihedral test:', 1)
+        vprint(passed_dihedral_test+1, 1)
         analysis_data = results[passed_dihedral_test]
         idx = passed_dihedral_test
 
@@ -487,7 +497,7 @@ def rank_structures(results,cfg):
     with open('top_eamber_models.dat','w') as output:
         output.write('# The top %s models are determined based on their ranking in Total Potential Energy (ignoring restraint energy penalties) (units: kcal mol^{-1}).\n# run_num    EAMBER    Restraint_Penalty\n'%(cfg.n_top_models))
         for model in top_models:
-            output.write('run_%s   %13f   %13f\n'%(str(model+1).zfill(len(str(cfg.n_folding_sims))),results[model,1],results[model,2])) 
+            output.write('run_%s   %13f   %13f\n'%(str(model+1).zfill(len(str(cfg.n_folding_sims))),results[model,1],results[model,2]))
 
     # rank by restraint penalty
     penalty_idx = np.argsort(analysis_data[:,2])
@@ -500,7 +510,7 @@ def rank_structures(results,cfg):
     with open('top_penalty_models.dat','w') as output:
         output.write('# The top %s models are determined based on their ranking in Restraint Penalty Energy (units: kcal mol^{-1}).\n# run_num    EAMBER    Restraint_Penalty\n'%(cfg.n_top_models))
         for model in top_models:
-            output.write('run_%s   %13f   %13f\n'%(str(model+1).zfill(len(str(cfg.n_folding_sims))),results[model,1],results[model,2])) 
+            output.write('run_%s   %13f   %13f\n'%(str(model+1).zfill(len(str(cfg.n_folding_sims))),results[model,1],results[model,2]))
 
 def main():
     args = parse_args()
